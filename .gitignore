@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+server/my-ca/root/*.key
+server/my-ca/root/*.srl
+server/my-ca/issued/
+server/self-cert/
+server/backups/
+*.log
