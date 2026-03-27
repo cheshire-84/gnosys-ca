@@ -10,6 +10,9 @@ const pkiRoutes = require('./routes/pki.routes');
 
 const app = express();
 
+// Tell Express to trust the NGINX reverse proxy to get real IP addresses
+app.set('trust proxy', 1);
+
 // Security & Middleware
 app.use(helmet());
 app.use(cors({ origin: ['https://ca.gnosys.labs', 'http://localhost:5173'] }));
