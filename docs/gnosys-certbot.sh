@@ -2,12 +2,14 @@
 
 # ==========================================
 # Gnosys Labs - Auto Cert Provisioning Agent
+# [ V4 SECURE TOKEN EDITION ]
 # ==========================================
 
-CA_URL="https://ca.gnosys.labs"
-USERNAME="svc_autocert"
-PASSWORD="<ENTER_YOUR_PASSPHRASE_HERE>"
+CA_URL="[https://ca.gnosys.labs](https://ca.gnosys.labs)"
 DEST_DIR="/etc/ssl/gnosys"
+
+# PASTE YOUR GENERATED SERVICE TOKEN HERE
+TOKEN="<PASTE_YOUR_GENERATED_SERVICE_TOKEN_HERE>"
 
 # Ensure jq is installed
 if ! command -v jq &> /dev/null; then
@@ -24,7 +26,7 @@ DOMAIN=$1
 IP=$2
 CERT_FILE="$DEST_DIR/$DOMAIN.crt"
 
-# --- NEW: EXPIRATION CHECK ---
+# --- EXPIRATION CHECK ---
 # 2592000 seconds = 30 days
 if [ -f "$CERT_FILE" ]; then
     if openssl x509 -checkend 2592000 -noout -in "$CERT_FILE"; then
@@ -38,15 +40,8 @@ else
 fi
 # -----------------------------
 
-echo "-> Authenticating with Pegasus-CA..."
-LOGIN_RES=$(curl -s -k -X POST "$CA_URL/api/auth/login" \
-    -H "Content-Type: application/json" \
-    -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}")
-
-TOKEN=$(echo "$LOGIN_RES" | jq -r .token)
-
-if [ "$TOKEN" == "null" ] || [ -z "$TOKEN" ]; then
-    echo "Error: Authentication failed."
+if [ -z "$TOKEN" ] || [[ "$TOKEN" == "<PASTE"* ]]; then
+    echo "Error: You must insert a valid Service Token into the script."
     exit 1
 fi
 
@@ -65,7 +60,8 @@ ISSUE_RES=$(curl -s -k -X POST "$CA_URL/api/issue" \
 SLUG=$(echo "$ISSUE_RES" | jq -r .slug)
 
 if [ "$SLUG" == "null" ] || [ -z "$SLUG" ]; then
-    echo "Error: Certificate issuance failed."
+    echo "Error: Certificate issuance failed. Is the token valid?"
+    echo "API Response: $ISSUE_RES"
     exit 1
 fi
 
@@ -81,7 +77,7 @@ sudo chmod 600 "$DEST_DIR/$DOMAIN.key"
 
 echo "-> Success: Assets deployed to $DEST_DIR"
 
-# --- NEW: AUTO RESTART NGINX ---
+# --- AUTO RESTART NGINX ---
 if systemctl is-active --quiet nginx; then
     echo "-> Restarting NGINX to apply new certificates..."
     sudo systemctl restart nginx
