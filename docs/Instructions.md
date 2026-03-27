@@ -137,7 +137,7 @@ Before the server requests a certificate, it needs to trust the Root Authority t
 
 ```bash
 # Download the Root CA directly from Pegasus-CA
-curl -k -o Gnosys_Root_CA.crt [https://ca.gnosys.labs/api/download-root](https://ca.gnosys.labs/api/download-root)
+curl -k -o Gnosys_Root_CA.crt https://ca.gnosys.labs/api/download-root
 
 # Install it into Ubuntu's trusted store
 sudo cp Gnosys_Root_CA.crt /usr/local/share/ca-certificates/
