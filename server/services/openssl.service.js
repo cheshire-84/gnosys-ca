@@ -4,8 +4,8 @@ const path = require('path');
 const util = require('util');
 const crypto = require('crypto');
 const execPromise = util.promisify(exec);
+const Certificate = require('../models/Certificate');
 
-// Path resolution (navigating up from /services to root of /server)
 const CA_DIR = path.join(__dirname, '../my-ca');
 const ISSUED_DIR = path.join(CA_DIR, 'issued');
 
@@ -13,27 +13,47 @@ if (!fs.existsSync(ISSUED_DIR)) fs.mkdirSync(ISSUED_DIR, { recursive: true });
 
 exports.getCaPaths = () => ({ CA_DIR, ISSUED_DIR });
 
-exports.getHistory = async () => {
-  const files = fs.readdirSync(ISSUED_DIR);
-  const crtFiles = files.filter(f => f.endsWith('.crt'));
-  const certData = [];
-
-  for (const file of crtFiles) {
+// --- AUTO-SYNC: Imports existing filesystem certs into MongoDB on startup ---
+exports.syncRegistry = async () => {
+  console.log("-> Syncing filesystem registry with MongoDB...");
+  const files = fs.readdirSync(ISSUED_DIR).filter(f => f.endsWith('.crt'));
+  
+  for (const file of files) {
     const slug = file.replace('.crt', '');
-    const crtPath = path.join(ISSUED_DIR, file);
+    const exists = await Certificate.findOne({ slug });
     
-    try {
-      const { stdout } = await execPromise(`openssl x509 -in ${crtPath} -noout -dates`);
-      const lines = stdout.split('\n');
-      const issued = lines.find(l => l.startsWith('notBefore='))?.split('=')[1] || 'Unknown';
-      const expires = lines.find(l => l.startsWith('notAfter='))?.split('=')[1] || 'Unknown';
+    if (!exists) {
+      const crtPath = path.join(ISSUED_DIR, file);
+      try {
+        const { stdout } = await execPromise(`openssl x509 -in ${crtPath} -noout -dates`);
+        const lines = stdout.split('\n');
+        const issuedAt = lines.find(l => l.startsWith('notBefore='))?.split('=')[1] || 'Unknown';
+        const expiresAt = lines.find(l => l.startsWith('notAfter='))?.split('=')[1] || 'Unknown';
 
-      certData.push({ slug, commonName: slug.replace(/_/g, '.'), issued, expires });
-    } catch (err) {
-      certData.push({ slug, commonName: slug.replace(/_/g, '.'), issued: 'Error', expires: 'Error' });
+        await Certificate.create({
+          slug,
+          commonName: slug.replace(/_/g, '.'),
+          issuedAt,
+          expiresAt
+        });
+        console.log(`Synced missing record: ${slug}`);
+      } catch (err) {
+        console.error(`Failed to sync ${slug}`, err);
+      }
     }
   }
-  return certData;
+};
+
+// --- OPTIMIZED HISTORY: Reads instantly from DB instead of running Bash commands ---
+exports.getHistory = async () => {
+  const certs = await Certificate.find().sort({ createdAt: -1 });
+  // Map MongoDB documents back to the format the React UI expects
+  return certs.map(c => ({
+    slug: c.slug,
+    commonName: c.commonName,
+    issued: c.issuedAt,
+    expires: c.expiresAt
+  }));
 };
 
 exports.issueCertificate = async (commonName, sanIp) => {
@@ -58,7 +78,22 @@ exports.issueCertificate = async (commonName, sanIp) => {
                -extfile ${extPath}`;
 
   try {
+    // 1. Generate the files via OpenSSL
     await execPromise(cmd, { shell: '/bin/bash' });
+    
+    // 2. Parse the exact dates from the newly created certificate
+    const { stdout } = await execPromise(`openssl x509 -in ${crtPath} -noout -dates`);
+    const lines = stdout.split('\n');
+    const issuedAt = lines.find(l => l.startsWith('notBefore='))?.split('=')[1] || 'Unknown';
+    const expiresAt = lines.find(l => l.startsWith('notAfter='))?.split('=')[1] || 'Unknown';
+
+    // 3. Save to MongoDB
+    await Certificate.findOneAndUpdate(
+      { slug }, 
+      { slug, commonName, sanIp, issuedAt, expiresAt, createdAt: new Date() },
+      { upsert: true, new: true }
+    );
+
   } finally {
     if (fs.existsSync(extPath)) fs.unlinkSync(extPath);
   }
@@ -66,7 +101,11 @@ exports.issueCertificate = async (commonName, sanIp) => {
   return slug;
 };
 
-exports.revokeCertificate = (slug) => {
+exports.revokeCertificate = async (slug) => {
+  // 1. Delete Files
   const files = [`${slug}.crt`, `${slug}.key`, `${slug}.csr`].map(f => path.join(ISSUED_DIR, f));
   files.forEach(f => { if (fs.existsSync(f)) fs.unlinkSync(f); });
+  
+  // 2. Delete from DB
+  await Certificate.findOneAndDelete({ slug });
 };

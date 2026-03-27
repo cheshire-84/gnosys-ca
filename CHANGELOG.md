@@ -2,22 +2,20 @@
 
 All notable changes to the Gnosys Labs PKI project will be documented in this file.
 
-## [1.0.0] - Production Release
+## [4.0.0] - Enterprise Architecture Update (Current)
 
 ### Added
-* **MongoDB Integration:** Replaced filesystem-only state with a persistent MongoDB database for user management.
-* **JWT Security:** Implemented robust JSON Web Token middleware to protect all API endpoints.
-* **Modular Architecture:** Refactored the Express backend into professional MVC-style routing (`config`, `models`, `middleware`, `routes`).
-* **React Componentization:** Split the monolithic UI into clean, maintainable components (`AuthPanel`, `SettingsPanel`, `DocumentationPanel`).
-* **Automation Agent:** Created `gnosys-certbot.sh` for automated client certificate provisioning and smart auto-renewal logic.
-* **Vault Backups:** Added `gnosys-vault-backup.sh` to securely dump, compress, and AES-256 encrypt the Root CA keys and database.
-* **Metadata Extraction:** Upgraded the `/api/history` route to use OpenSSL to extract exact start and end dates for issued certificates.
+* **Service Tokens (API Keys):** Added non-expiring, headless machine tokens for automated `gnosys-certbot.sh` agents.
+* **Database State Migration:** Issued certificates are now mapped to MongoDB for instant UI loading, eliminating high CPU I/O loops.
+* **Watchdog & Webhooks:** Added a daily cron service that audits the database and fires Discord Webhooks 30 days prior to asset expiration.
+* **React Componentization:** Completely refactored the frontend monolithic `App.jsx` into dedicated pages and modular components.
+* **Service Layer Abstraction:** Decoupled Express routing from OpenSSL bash execution by introducing strict Service files.
+* **Express Hardening:** Integrated `helmet` for HTTP header security and `express-rate-limit` to prevent brute-force authorization attacks.
 
 ### Changed
-* Transitioned from serving dynamic frontend files out of `/home` to a secure, static NGINX web directory (`/var/www/gnosys-ca`).
-* Updated React build scripts to include an automated `deploy` command.
+* Modified NGINX access logs to automatically redact and scrub JWT tokens from URL query parameters.
+* Updated Vault Backup script to target correct paths and include the new V4 MongoDB dumps.
+* Reduced React polling interval from 5 seconds to 60 seconds, substituting with manual UI triggers to reduce database load.
 
 ### Fixed
-* **Command Injection Risk:** Added strict Regex validation to the Common Name input to prevent bash execution exploits.
-* **Trailing Slash Routing:** Corrected NGINX reverse proxy configuration to properly map `/api` to the Node.js backend.
-* **Download Authentication:** Patched a 401 Unauthorized bug for file downloads by allowing the API to check for JWTs in URL query parameters.
+* **Concurrency Bug:** Implemented `crypto.randomUUID()` for `.ext` file generation to prevent race conditions during simultaneous certificate issuances.

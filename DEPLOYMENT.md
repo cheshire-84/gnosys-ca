@@ -33,16 +33,16 @@ sudo apt install -y curl wget git jq nginx openssl build-essential
 ### 3. Install Node.js & PM2
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-install -y nodejs
+curl -fsSL [https://deb.nodesource.com/setup_20.x](https://deb.nodesource.com/setup_20.x) | sudo -E bash -
+sudo apt install -y nodejs
 sudo npm install -g pm2
 ```
 
 ### 4. Install MongoDB
 
 ```bash
-curl -fsSL https://pgp.mongodb.com/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
-echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+curl -fsSL [https://pgp.mongodb.com/server-7.0.asc](https://pgp.mongodb.com/server-7.0.asc) | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
+echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] [https://repo.mongodb.org/apt/ubuntu](https://repo.mongodb.org/apt/ubuntu) jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
 sudo apt update
 sudo apt install -y mongodb-org
 sudo systemctl enable --now mongod
@@ -57,7 +57,7 @@ The application must reside in the `glabs` home directory.
 
 ```bash
 cd /home/glabs
-git clone https://github.com/YOUR_GITHUB_USERNAME/gnosys-ca.git
+git clone [https://github.com/YOUR_GITHUB_USERNAME/gnosys-ca.git](https://github.com/YOUR_GITHUB_USERNAME/gnosys-ca.git)
 cd gnosys-ca
 ```
 
@@ -88,8 +88,8 @@ tar -xzf restored-vault.tar.gz
 ### 2. Restore Database and Keys
 
 ```bash
-# Restore the MongoDB users
-mongorestore --drop --uri="mongodb://127.0.0.1:27017/gnosys-pki" mongo_dump/gnosys-pki
+# Restore the V4 MongoDB users, API keys, and certificate registry
+mongorestore --drop --uri="mongodb://127.0.0.1:27017/gnosys-ca" mongo_dump/gnosys-ca
 
 # Ensure the restored CA keys have strict permissions
 chmod 600 my-ca/root/ca.key

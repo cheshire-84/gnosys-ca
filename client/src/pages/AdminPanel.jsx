@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserPlus, Terminal } from 'lucide-react';
+import { UserPlus, Terminal, Bell } from 'lucide-react';
 
 export default function AdminPanel({ users, apiKeys, currentUser, apiCall, fetchData, addLog }) {
   const [newlyGeneratedKey, setNewlyGeneratedKey] = useState(null);
@@ -22,6 +22,17 @@ export default function AdminPanel({ users, apiKeys, currentUser, apiCall, fetch
       e.target.reset(); 
       addLog(`Service Token generated: ${n}`);
       await fetchData();
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    addLog("Testing Webhook transmission link...");
+    const res = await apiCall('/test-webhook', { method: 'POST' });
+    if (res.ok) {
+        addLog("Webhook transmitted successfully");
+    } else {
+        const data = await res.json();
+        addLog(`WEBHOOK_ERR: ${data.error}`);
     }
   };
 
@@ -130,6 +141,32 @@ export default function AdminPanel({ users, apiKeys, currentUser, apiCall, fetch
                     <button onClick={() => setNewlyGeneratedKey(null)} className="mt-4 text-[9px] text-gray-500 hover:text-white uppercase tracking-widest">[ Dismiss ]</button>
                  </div>
                )}
+            </div>
+          </div>
+       </section>
+
+       <section className="bg-[#141414] border border-[#262626] p-10 max-w-4xl">
+          <div className="flex justify-between items-start mb-10 border-b border-[#1a1a1a] pb-6">
+            <div>
+              <h2 className="text-xl font-light text-white uppercase tracking-[0.4em]">System Alerts</h2>
+              <p className="text-[10px] text-gray-500 uppercase tracking-widest mt-1">Manage External Communications</p>
+            </div>
+            <Bell className="text-white/20" size={32}/>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+            <div className="space-y-6">
+               <h4 className="text-[9px] font-bold text-gray-600 uppercase tracking-widest border-l border-white pl-3">Webhook_Diagnostics</h4>
+               <div className="bg-black border border-[#1a1a1a] p-6 space-y-4">
+                 <p className="text-[10px] text-gray-400 font-mono leading-relaxed">
+                   Verify that the Watchdog service can reach your configured Discord endpoint. A test payload will be transmitted immediately.
+                 </p>
+                 <button 
+                    onClick={handleTestWebhook} 
+                    className="w-full bg-[#141414] border border-[#262626] text-white py-3 text-[9px] font-bold uppercase tracking-[0.3em] hover:border-white transition-colors"
+                 >
+                    [ Transmit_Test_Signal ]
+                 </button>
+               </div>
             </div>
           </div>
        </section>

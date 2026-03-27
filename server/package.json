@@ -12,6 +12,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.3.3",
+    "node-cron": "^4.2.1",
     "os-utils": "^0.0.14",
     "shelljs": "^0.8.5"
   }

@@ -21,6 +21,12 @@ app.use(express.json());
 // Initialize Database Connection
 connectDB();
 
+// --- NEW: Run Startup Routines ---
+const pkiService = require('./services/openssl.service');
+const watchdogService = require('./services/watchdog.service');
+pkiService.syncRegistry();
+watchdogService.startWatchdog();
+
 // Mount Routes
 app.use('/api/auth', authRoutes);
 app.use('/api', pkiRoutes);

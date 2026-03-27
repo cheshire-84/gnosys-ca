@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const verifyToken = require('../middleware/auth');
+const watchdogService = require('../services/watchdog.service');
 
 // Import our new Service Layers
 const pkiService = require('../services/openssl.service');
@@ -69,6 +70,15 @@ router.delete('/revoke/:slug', verifyToken, (req, res) => {
     res.json({ message: "Record Deleted" });
   } catch (err) {
     res.status(500).json({ error: "Failed to revoke asset" });
+  }
+});
+
+router.post('/test-webhook', verifyToken, async (req, res) => {
+  try {
+    await watchdogService.testWebhook();
+    res.json({ message: "Webhook transmitted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

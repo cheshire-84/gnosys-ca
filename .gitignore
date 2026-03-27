@@ -1,4 +1,5 @@
 node_modules/
+gnosys-vault-backup.sh
 dist/
 .env
 server/my-ca/root/*.key

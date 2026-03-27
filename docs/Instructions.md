@@ -1,28 +1,30 @@
-# Automatopm Scritp Instructions
+# Automation Script Instructions (V4 Enterprise)
 
-You can drop this bash script onto any Linux machine in your homelab. It uses `curl` and `jq` to talk to your new API, authenticate as `svc_autocert`, request a certificate, download the files, and secure them with the proper permissions.
+You can drop this bash script onto any Linux machine in your homelab. It uses a **Service Token** generated from your Admin Panel to authenticate with Pegasus-CA, request a certificate, download the files, and secure them with the proper permissions.
 
 ### The Automation Script
 
-On any of your client machines (or even right there on the CA server to test it), create a new file called `gnosys-certbot.sh`:
+On any of your client machines, create a new file called `gnosys-certbot.sh`:
 
 ```bash
 nano gnosys-certbot.sh
 ```
 
-Paste in the following code. **Make sure to replace `<ENTER_YOUR_PASSPHRASE_HERE>` with the password you just set for `svc_autocert`.**
+Paste in the following code. **Make sure to generate a Service Token from the "Machine Automation" section of your Pegasus-CA Admin Panel, and paste it where indicated.**
 
 ```bash
 #!/bin/bash
 
 # ==========================================
 # Gnosys Labs - Auto Cert Provisioning Agent
+# [ V4 SECURE TOKEN EDITION ]
 # ==========================================
 
-CA_URL="https://ca.gnosys.labs"
-USERNAME="svc_autocert"
-PASSWORD="<ENTER_YOUR_PASSPHRASE_HERE>"
+CA_URL="[https://ca.gnosys.labs](https://ca.gnosys.labs)"
 DEST_DIR="/etc/ssl/gnosys"
+
+# PASTE YOUR GENERATED SERVICE TOKEN HERE
+TOKEN="<PASTE_YOUR_GENERATED_SERVICE_TOKEN_HERE>"
 
 # Ensure jq is installed
 if ! command -v jq &> /dev/null; then
@@ -39,7 +41,7 @@ DOMAIN=$1
 IP=$2
 CERT_FILE="$DEST_DIR/$DOMAIN.crt"
 
-# --- NEW: EXPIRATION CHECK ---
+# --- EXPIRATION CHECK ---
 # 2592000 seconds = 30 days
 if [ -f "$CERT_FILE" ]; then
     if openssl x509 -checkend 2592000 -noout -in "$CERT_FILE"; then
@@ -53,15 +55,8 @@ else
 fi
 # -----------------------------
 
-echo "-> Authenticating with Pegasus-CA..."
-LOGIN_RES=$(curl -s -k -X POST "$CA_URL/api/auth/login" \
-    -H "Content-Type: application/json" \
-    -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}")
-
-TOKEN=$(echo "$LOGIN_RES" | jq -r .token)
-
-if [ "$TOKEN" == "null" ] || [ -z "$TOKEN" ]; then
-    echo "Error: Authentication failed."
+if [ -z "$TOKEN" ] || [[ "$TOKEN" == "<PASTE"* ]]; then
+    echo "Error: You must insert a valid Service Token into the script."
     exit 1
 fi
 
@@ -80,7 +75,8 @@ ISSUE_RES=$(curl -s -k -X POST "$CA_URL/api/issue" \
 SLUG=$(echo "$ISSUE_RES" | jq -r .slug)
 
 if [ "$SLUG" == "null" ] || [ -z "$SLUG" ]; then
-    echo "Error: Certificate issuance failed."
+    echo "Error: Certificate issuance failed. Is the token valid?"
+    echo "API Response: $ISSUE_RES"
     exit 1
 fi
 
@@ -96,7 +92,7 @@ sudo chmod 600 "$DEST_DIR/$DOMAIN.key"
 
 echo "-> Success: Assets deployed to $DEST_DIR"
 
-# --- NEW: AUTO RESTART NGINX ---
+# --- AUTO RESTART NGINX ---
 if systemctl is-active --quiet nginx; then
     echo "-> Restarting NGINX to apply new certificates..."
     sudo systemctl restart nginx
@@ -118,34 +114,30 @@ fi
     ./gnosys-certbot.sh monitoring.gnosys.labs 10.1.1.99
     ```
 
-You now have a fully functional, self-hosted Certificate Authority with a secure UI, robust database-backed access control, and an automated deployment script. 
-
 ---
 
-This is the absolute perfect scenario to test the automation pipeline. GPass sounds like a fantastic addition to the homelab, especially for managing the infrastructure secrets.
+## Real-World Deployment Example: GPass Node
 
-Since this is a pristine Ubuntu 24.04 LXC, we need to do a tiny bit of bootstrapping first. We have to install the dependencies, tell this new server to trust your Pegasus-CA root, and then run the fetcher script.
-
-Here is the exact sequence to execute on the **new GPass server (`10.1.1.83`)**:
+This is the exact sequence to execute on a brand new server (e.g., your **GPass server `10.1.1.83`**) to securely bootstrap it onto the PKI network.
 
 ### Step 1: System Prep & Dependencies
-SSH into your new GPass server:
+SSH into your new server:
 ```bash
 ssh glabs@10.1.1.83
 ```
 
-Update the package lists and install `jq` (required for our script) and `nginx` (so we have a web server to actually test the certificate on):
+Update the package lists and install `jq` and `nginx`:
 ```bash
 sudo apt update
 sudo apt install -y jq curl nginx
 ```
 
 ### Step 2: Establish Core Trust
-Before GPass requests a certificate, it needs to trust the Root Authority that issues it. We can fetch this directly from your CA API.
+Before the server requests a certificate, it needs to trust the Root Authority that issues it. We fetch this directly from your CA API.
 
 ```bash
 # Download the Root CA directly from Pegasus-CA
-curl -k -o Gnosys_Root_CA.crt https://10.1.1.81/api/download-root
+curl -k -o Gnosys_Root_CA.crt [https://ca.gnosys.labs/api/download-root](https://ca.gnosys.labs/api/download-root)
 
 # Install it into Ubuntu's trusted store
 sudo cp Gnosys_Root_CA.crt /usr/local/share/ca-certificates/
@@ -158,19 +150,18 @@ Now, let's create and run the automation script.
 ```bash
 nano gnosys-certbot.sh
 ```
-Paste the script from our previous step. **Be sure to replace `<ENTER_YOUR_PASSPHRASE_HERE>` with the password you created for `svc_autocert`**. 
+Paste the script from above. **Remember to paste your Service Token into the `TOKEN=` variable**. 
 
 Make it executable and fire it off for your new domain and IP:
 ```bash
 chmod +x gnosys-certbot.sh
 ./gnosys-certbot.sh gpass.gnosys.labs 10.1.1.83
 ```
-*If successful, it will print out the SUCCESS message confirming the `.crt` and `.key` are sitting safely in `/etc/ssl/gnosys/`.*
+*If successful, it will print out a SUCCESS message confirming the `.crt` and `.key` are sitting safely in `/etc/ssl/gnosys/`.*
 
 ### Step 4: Wire it into NGINX
-To prove it worked, let's instantly secure the default NGINX page on GPass. 
 
-Create a new NGINX config for GPass:
+Create a new NGINX config for the service:
 ```bash
 sudo nano /etc/nginx/sites-available/gpass
 ```
@@ -214,20 +205,9 @@ sudo nginx -t
 sudo systemctl restart nginx
 ```
 
-### The Grand Finale
-Open your browser and navigate to `https://gpass.gnosys.labs`. 
+### Step 5: Auto Renewal Cronjob
 
-You should see the "Welcome to nginx!" page, but more importantly, you should see the **secure padlock icon** in your browser. If you check the certificate details, it will proudly say it was verified by **Gnosys Root CA**. 
-
-Let me know if the script executes cleanly and drops those files right where they belong!
-
-
-
-
-
-### Auto Renewal cron
-
-Now we just tell the server to run this script automatically every Monday at 3:00 AM. 
+Now we just tell the server to run this script automatically every Monday at 3:00 AM to check for upcoming expirations. 
 
 1. Open the crontab for the `root` user (since it needs permission to restart NGINX):
    ```bash
@@ -237,4 +217,4 @@ Now we just tell the server to run this script automatically every Monday at 3:0
    ```bash
    0 3 * * 1 /home/glabs/gnosys-certbot.sh gpass.gnosys.labs 10.1.1.83 >> /var/log/gnosys-certbot.log 2>&1
    ```
-3. Save and exit.
+3. Save and exit. The server will now seamlessly maintain its own cryptographic trust forever.
