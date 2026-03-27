@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "deploy": "vite build && sudo rsync -av --delete dist/ /var/www/gnosys-ca/",    "lint": "eslint .",
+    "deploy": "vite build && sudo rsync -av --delete dist/ /var/www/gnosys-ca/",
+    "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "lucide-react": "^1.7.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

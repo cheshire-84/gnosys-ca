@@ -6,6 +6,7 @@ const os = require('os');
 const osUtils = require('os-utils');
 const disk = require('diskusage');
 const util = require('util');
+const crypto = require('crypto'); // <-- Added crypto for thread-safe file generation
 const execPromise = util.promisify(exec);
 const verifyToken = require('../middleware/auth');
 
@@ -72,33 +73,40 @@ router.post('/issue', verifyToken, (req, res) => {
   const { commonName, sanIp } = req.body;
   if (!commonName) return res.status(400).send("Common Name required");
 
+  // Strict regex prevents command injection via the inputs
   const domainRegex = /^[a-zA-Z0-9.-]+$/;
   if (!domainRegex.test(commonName)) return res.status(400).json({ error: "Invalid Common Name format." });
   if (sanIp && !/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(sanIp)) return res.status(400).json({ error: "Invalid IP format." });
 
   const slug = commonName.replace(/\./g, '_');
+  const uniqueId = crypto.randomUUID(); // <-- Unique ID prevents concurrency overwrites
+  
   const keyPath = path.join(ISSUED_DIR, `${slug}.key`);
   const csrPath = path.join(ISSUED_DIR, `${slug}.csr`);
   const crtPath = path.join(ISSUED_DIR, `${slug}.crt`);
-  const extPath = path.join(ISSUED_DIR, `${slug}.ext`);
+  const extPath = path.join(ISSUED_DIR, `${slug}-${uniqueId}.ext`); // <-- Thread-safe filename
 
   let sanString = `subjectAltName=DNS:${commonName},DNS:*.${commonName}`;
   if (sanIp) sanString += `,IP:${sanIp}`;
 
   fs.writeFileSync(extPath, sanString);
 
+  // Removed the chained `rm ${extPath}` from the Bash execution to prevent shell manipulation risks
   const cmd = `openssl genrsa -out ${keyPath} 2048 && \
                openssl req -new -key ${keyPath} -subj "/C=US/O=Gnosys Labs/CN=${commonName}" -out ${csrPath} && \
                openssl x509 -req -in ${csrPath} \
                -CA ${CA_DIR}/root/ca.crt -CAkey ${CA_DIR}/root/ca.key \
                -CAcreateserial -out ${crtPath} -days 365 -sha256 \
-               -extfile ${extPath} && \
-               rm ${extPath}`;
+               -extfile ${extPath}`;
 
   exec(cmd, { shell: '/bin/bash' }, (err) => {
+    // Safely clean up the unique extension file via Node, not Bash
+    if (fs.existsSync(extPath)) {
+      fs.unlinkSync(extPath);
+    }
+    
     if (err) {
-      if (fs.existsSync(extPath)) fs.unlinkSync(extPath);
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({ error: "Certificate generation failed." });
     }
     res.json({ message: "Certificate Issued", slug });
   });

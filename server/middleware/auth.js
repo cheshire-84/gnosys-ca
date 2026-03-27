@@ -1,25 +1,36 @@
 const jwt = require('jsonwebtoken');
+const ApiKey = require('../models/ApiKey');
 
-const verifyToken = (req, res, next) => {
-  let token;
+const verifyToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  
-  if (authHeader) {
-    token = authHeader.split(' ')[1];
-  } else if (req.query.token) {
-    token = req.query.token;
-  }
-  
-  if (!token) return res.status(401).json({ error: "Access Denied: Terminal Locked" });
+  const token = req.query.token || (authHeader && authHeader.split(' ')[1]);
+
+  if (!token) return res.status(403).json({ error: "A token is required for authentication" });
 
   try {
-    const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
-    const verified = jwt.verify(token, JWT_SECRET);
-    req.user = verified;
-    next();
+    // 1. Try resolving as a standard user JWT session
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    return next();
   } catch (err) {
-    res.status(403).json({ error: "Invalid or Expired Token" });
+    // 2. If JWT fails, check if it's a persistent Machine Service Token (API Key)
+    try {
+      const apiKeyRecord = await ApiKey.findOne({ key: token });
+      if (apiKeyRecord) {
+        req.user = { username: apiKeyRecord.name, role: 'service_agent' };
+        
+        // Update "last used" timestamp asynchronously so it doesn't block the request
+        apiKeyRecord.lastUsed = new Date();
+        apiKeyRecord.save().catch(e => console.error("Failed to update key usage", e));
+        
+        return next();
+      }
+    } catch (dbErr) {
+      console.error("DB Error checking API Key:", dbErr);
+    }
   }
+  
+  return res.status(401).json({ error: "Invalid Token or API Key" });
 };
 
 module.exports = verifyToken;
