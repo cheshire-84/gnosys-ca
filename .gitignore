@@ -2,9 +2,11 @@ node_modules/
 gnosys-vault-backup.sh
 dist/
 .env
+backups/
 server/my-ca/root/*.key
 server/my-ca/root/*.srl
 server/my-ca/issued/
 server/self-cert/
 server/backups/
 *.log
+*.tar.gz
